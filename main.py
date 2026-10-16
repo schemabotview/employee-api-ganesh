@@ -44,13 +44,12 @@ def add_employee(emp: Employee):
         )
         return cur.fetchone()
 
-@app.get("/employees/{employee_id}")
-def get_employee(employee_id: int):
+
+@app.get("/employees/{emp_id}")
+def get_employee(emp_id: int):
     with get_conn() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
-        cur.execute("SELECT * FROM employees WHERE id = %s", (employee_id,))
-        employee = cur.fetchone()
-
-    if employee is None:
-        raise HTTPException(status_code=404, detail=f"Employee {employee_id} not found")
-
-    return employee
+        cur.execute("SELECT * FROM employees WHERE id = %s", (emp_id,))
+        row = cur.fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    return row
