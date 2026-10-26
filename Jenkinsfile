@@ -40,7 +40,7 @@ pipeline {
       steps {
         dir('terraform') {
           withCredentials([file(credentialsId: 'tfvars', variable: 'TFVARS')]) {
-            sh 'terraform init -input=false -backend-config="bucket=$STATE_BUCKET"'
+            sh 'terraform init -input=false -reconfigure -backend-config="bucket=$STATE_BUCKET"'
             sh 'terraform apply -input=false -auto-approve -var-file=$TFVARS -target=aws_ecr_repository.app'
           }
         }
