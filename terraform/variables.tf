@@ -3,7 +3,7 @@ variable "region" {
 }
 
 variable "app_name" {
-  default = "employee-api-sruthi"
+  default = "employee-api-ganesh"
 }
 variable "db_host" {}
 variable "db_name" {}

@@ -6,8 +6,8 @@ terraform {
     }
   }
   backend "s3" {
-    bucket = "sruthi-glue-miniproject"
-    key    = "terraform/employee-api-sruthi/terraform.tfstate"
+    bucket = "employee-api-tfstate-743737183475"
+    key    = "terraform/employee-api-ganesh/terraform.tfstate"
     region = "eu-west-2"
   }
 }

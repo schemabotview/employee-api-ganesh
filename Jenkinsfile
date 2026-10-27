@@ -11,8 +11,8 @@ pipeline {
 
   environment {
     AWS_DEFAULT_REGION = 'eu-west-2'
-    AWS_PROFILE        = 'employee-lab'
-    APP          = 'employee-api-sruthi'
+    AWS_PROFILE        = 'AdministratorAccess-743737183475'
+    APP          = 'employee-api-ganesh'
     ACCOUNT      = sh(script: 'aws sts get-caller-identity --query Account --output text', returnStdout: true).trim()
     STATE_BUCKET = "employee-api-tfstate-${ACCOUNT}"
     REGISTRY     = "${ACCOUNT}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"

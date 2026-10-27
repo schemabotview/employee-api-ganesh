@@ -27,3 +27,11 @@ resource "aws_security_group" "app" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 }
+# ganesh-db (and every other lab RDS) sits in the default VPC security group,
+# which already permits tcp/5432 from itself. Attaching the task to that group
+# as well grants DB access without mutating a security group shared by 12
+# databases belonging to other people.
+data "aws_security_group" "default" {
+  vpc_id = data.aws_vpc.default.id
+  name   = "default"
+}
