@@ -59,9 +59,19 @@ else
 fi
 
 # --- 2. IAM role GitHub Actions assumes ---------------------------------
+# Two sub patterns, because GitHub issues one of two formats:
+#   classic:    repo:owner/name:ref:refs/heads/main
+#   immutable:  repo:owner@<ownerId>/name@<repoId>:ref:refs/heads/main
+# Matching only the classic form fails with "Not authorized to perform
+# sts:AssumeRoleWithWebIdentity" on repos issuing the immutable one. The
+# wildcard sits where the numeric id goes; GitHub logins cannot contain
+# "@" or "/", so it cannot widen past this repo.
+OWNER="${REPO%%/*}"
+NAME="${REPO##*/}"
+
 # Built with printf rather than a heredoc so the quoting stays obvious.
-TRUST="$(printf '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Federated":"%s"},"Action":"sts:AssumeRoleWithWebIdentity","Condition":{"StringEquals":{"%s:aud":"sts.amazonaws.com"},"StringLike":{"%s:sub":"repo:%s:*"}}}]}' \
-  "$OIDC_ARN" "$OIDC_HOST" "$OIDC_HOST" "$REPO")"
+TRUST="$(printf '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Federated":"%s"},"Action":"sts:AssumeRoleWithWebIdentity","Condition":{"StringEquals":{"%s:aud":"sts.amazonaws.com"},"StringLike":{"%s:sub":["repo:%s/%s:*","repo:%s@*/%s@*:*"]}}}]}' \
+  "$OIDC_ARN" "$OIDC_HOST" "$OIDC_HOST" "$OWNER" "$NAME" "$OWNER" "$NAME")"
 
 if aws iam get-role --role-name "$ROLE" >/dev/null 2>&1; then
   echo "role ${ROLE} exists, refreshing trust policy"
