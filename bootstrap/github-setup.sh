@@ -3,7 +3,7 @@
 set -euo pipefail
 
 REPO="${REPO:-schemabotview/employee-api-ganesh}"
-ACCOUNT="${ACCOUNT:-743737183475}"
+ACCOUNT="${ACCOUNT:-743737183475}" # the lab account, same as bootstrap.sh
 APP="employee-api-ganesh"
 
 # Security group ingress for the API. Detected at run time so it follows you.

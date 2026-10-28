@@ -42,9 +42,14 @@ curl -X POST localhost:8000/employees \
 ## One-off setup
 
 ```bash
-export AWS_PROFILE=AdministratorAccess-743737183475
+export AWS_PROFILE=AdministratorAccess-743737183475   # not the default profile
+aws sso login --profile "$AWS_PROFILE"                # if the session expired
 ./bootstrap/bootstrap.sh
 ```
+
+Everything lives in lab account `743737183475`. `bootstrap.sh` checks the
+account before doing anything and stops if your credentials point elsewhere —
+the `default` profile is a different account.
 
 That creates the GitHub Actions OIDC provider and the role Actions assumes.
 Then wire up the repo side:

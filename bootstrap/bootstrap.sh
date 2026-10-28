@@ -8,18 +8,40 @@ REGION="${AWS_REGION:-eu-west-2}"
 REPO="${REPO:-schemabotview/employee-api-ganesh}"
 APP="employee-api-ganesh"
 
-ACCOUNT="$(aws sts get-caller-identity --query Account --output text)"
+# The lab account. Everything below lives here, including the shared state
+# bucket, so refuse to run anywhere else rather than half-create things.
+EXPECTED_ACCOUNT="743737183475"
+PROFILE_HINT="AdministratorAccess-${EXPECTED_ACCOUNT}"
+
+# Shared team bucket, declared in terraform/provider.tf. Not created here.
+BUCKET="employee-api-tfstate-${EXPECTED_ACCOUNT}"
 ROLE="${APP}-gha-role"
 
-# State lives in the shared team bucket (declared in terraform/provider.tf),
-# under terraform/${APP}/ - nothing to create here.
-BUCKET="employee-api-tfstate-${ACCOUNT}"
+ACCOUNT="$(aws sts get-caller-identity --query Account --output text)"
+
+if [ "$ACCOUNT" != "$EXPECTED_ACCOUNT" ]; then
+  cat >&2 <<MSG
+ERROR: wrong AWS account.
+
+  credentials point at: ${ACCOUNT}
+  this script expects:  ${EXPECTED_ACCOUNT}
+
+AWS_PROFILE is currently "${AWS_PROFILE:-default}". Re-run as:
+
+  AWS_PROFILE=${PROFILE_HINT} ./bootstrap/bootstrap.sh
+
+If that profile's SSO session has expired, refresh it first:
+
+  aws sso login --profile ${PROFILE_HINT}
+MSG
+  exit 1
+fi
 
 echo "account=${ACCOUNT} region=${REGION} role=${ROLE}"
 echo "state=s3://${BUCKET}/terraform/${APP}/terraform.tfstate"
 
 if ! aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
-  echo "ERROR: shared state bucket ${BUCKET} is not reachable" >&2
+  echo "ERROR: shared state bucket ${BUCKET} is not reachable from this account" >&2
   exit 1
 fi
 
