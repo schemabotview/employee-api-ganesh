@@ -31,6 +31,11 @@ variable "db_host" {
   description = "Postgres host the API connects to. The sidecar shares the task's network namespace, so this stays localhost."
   type        = string
   default     = "localhost"
+
+  validation {
+    condition     = length(var.db_host) > 0
+    error_message = "db_host must not be empty. libpq reads an empty host as 'use a Unix socket', which no sidecar listens on. An unset TF_VAR_db_host in CI expands to \"\" and overrides this default, so pass nothing at all rather than an empty value."
+  }
 }
 
 variable "postgres_image" {
@@ -55,4 +60,9 @@ variable "db_password" {
   description = "Postgres password. Initialises the sidecar and is what the API authenticates with."
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = length(var.db_password) > 0
+    error_message = "db_password must not be empty; Postgres refuses to initialise without one."
+  }
 }

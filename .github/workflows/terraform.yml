@@ -18,8 +18,11 @@ concurrency:
 
 env:
   AWS_REGION: eu-west-2
+  # Only pass variables that are actually set. An unset repo variable expands
+  # to an empty string, and Terraform treats TF_VAR_x="" as a real value that
+  # overrides the default - which is how db_host became "" and sent libpq to
+  # a Unix socket instead of the sidecar.
   TF_VAR_allowed_cidr: ${{ vars.TF_VAR_ALLOWED_CIDR }}
-  TF_VAR_db_host: ${{ vars.TF_VAR_DB_HOST }}
   TF_VAR_db_password: ${{ secrets.TF_VAR_DB_PASSWORD }}
 
 jobs:
