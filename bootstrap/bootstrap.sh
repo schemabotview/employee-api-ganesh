@@ -9,32 +9,21 @@ REPO="${REPO:-schemabotview/employee-api-ganesh}"
 APP="employee-api-ganesh"
 
 ACCOUNT="$(aws sts get-caller-identity --query Account --output text)"
-BUCKET="${APP}-tfstate-${ACCOUNT}"
 ROLE="${APP}-gha-role"
 
-echo "account=${ACCOUNT} region=${REGION} bucket=${BUCKET} role=${ROLE}"
+# State lives in the shared team bucket (declared in terraform/provider.tf),
+# under terraform/${APP}/ - nothing to create here.
+BUCKET="employee-api-tfstate-${ACCOUNT}"
 
-# --- 1. S3 bucket for Terraform state -----------------------------------
-if aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
-  echo "bucket ${BUCKET} already exists"
-else
-  echo "creating bucket ${BUCKET}"
-  aws s3api create-bucket \
-    --bucket "$BUCKET" \
-    --region "$REGION" \
-    --create-bucket-configuration "LocationConstraint=${REGION}"
+echo "account=${ACCOUNT} region=${REGION} role=${ROLE}"
+echo "state=s3://${BUCKET}/terraform/${APP}/terraform.tfstate"
+
+if ! aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
+  echo "ERROR: shared state bucket ${BUCKET} is not reachable" >&2
+  exit 1
 fi
 
-aws s3api put-bucket-versioning \
-  --bucket "$BUCKET" \
-  --versioning-configuration Status=Enabled
-
-aws s3api put-public-access-block \
-  --bucket "$BUCKET" \
-  --public-access-block-configuration \
-    "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
-
-# --- 2. GitHub Actions OIDC provider ------------------------------------
+# --- 1. GitHub Actions OIDC provider ------------------------------------
 OIDC_ARN="arn:aws:iam::${ACCOUNT}:oidc-provider/token.actions.githubusercontent.com"
 
 if aws iam get-open-id-connect-provider --open-id-connect-provider-arn "$OIDC_ARN" >/dev/null 2>&1; then
@@ -47,7 +36,7 @@ else
     --thumbprint-list "6938fd4d98bab03faadb97b34396831e3780aea1"
 fi
 
-# --- 3. IAM role GitHub Actions assumes ---------------------------------
+# --- 2. IAM role GitHub Actions assumes ---------------------------------
 TRUST="$(cat <<JSON
 {
   "Version": "2012-10-17",
@@ -87,17 +76,12 @@ aws iam attach-role-policy \
 
 ROLE_ARN="$(aws iam get-role --role-name "$ROLE" --query Role.Arn --output text)"
 
-# --- 4. Backend config Terraform inits with -----------------------------
-cat > "$(dirname "$0")/backend.hcl" <<HCL
-bucket = "${BUCKET}"
-HCL
 
 cat <<SUMMARY
 
 Done. Set these on the GitHub repo:
 
-  gh variable set AWS_ROLE_ARN   --body "${ROLE_ARN}"           --repo ${REPO}
-  gh variable set TF_STATE_BUCKET --body "${BUCKET}"            --repo ${REPO}
+  gh variable set AWS_ROLE_ARN        --body "${ROLE_ARN}"      --repo ${REPO}
   gh variable set TF_VAR_allowed_cidr --body "<your.ip>/32"     --repo ${REPO}
   gh variable set TF_VAR_db_host --body "<postgres host>"       --repo ${REPO}
   gh secret   set TF_VAR_db_password --body "<password>"        --repo ${REPO}

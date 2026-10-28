@@ -8,9 +8,9 @@ terraform {
     }
   }
 
-  # Bucket is supplied at init time by bootstrap/backend.hcl so the same
-  # config works from a laptop and from CI.
+  # Shared team bucket, one prefix per person.
   backend "s3" {
+    bucket = "employee-api-tfstate-743737183475"
     key    = "terraform/employee-api-ganesh/terraform.tfstate"
     region = "eu-west-2"
   }

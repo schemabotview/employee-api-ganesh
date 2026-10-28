@@ -47,8 +47,8 @@ export AWS_PROFILE=AdministratorAccess-743737183475
 ./bootstrap/bootstrap.sh
 ```
 
-That creates the S3 state bucket, the GitHub Actions OIDC provider, and the
-role Actions assumes. Then wire up the repo side:
+That creates the GitHub Actions OIDC provider and the role Actions assumes.
+Then wire up the repo side:
 
 ```bash
 DB_PASSWORD='<password>' ./bootstrap/github-setup.sh
@@ -64,6 +64,18 @@ so changes have to arrive via a PR — without that, the plan gate is decorative
 3. Merge. Actions runs `apply -auto-approve` against the same state.
 4. Jenkins (polling every 2 min) builds the image, smoke-tests it, pushes to
    ECR, and forces a new ECS deployment.
+
+## Terraform state
+
+State lives in the shared team bucket, one prefix per person:
+
+```
+s3://employee-api-tfstate-743737183475/terraform/employee-api-ganesh/terraform.tfstate
+```
+
+That is declared in `terraform/provider.tf`, so `terraform init` needs no
+extra flags. The bucket is versioned, and there is no DynamoDB lock table —
+fine while everyone stays inside their own prefix.
 
 ## Terraform variables
 
@@ -86,7 +98,8 @@ For local runs, copy `terraform/example.tfvars` to `terraform/terraform.tfvars`
   locally for development. Add an `aws_db_instance` if you want RDS in the apply.
 - No ALB — the Fargate task gets a public IP, reachable on `:8000` from
   `allowed_cidr` only.
-- No DynamoDB state lock. Fine for one person, not for a team.
+- No DynamoDB state lock. Everyone shares the bucket but not the prefix, so
+  concurrent applies can't corrupt each other's state.
 - The CI role has `PowerUserAccess` + `IAMFullAccess` so plan/apply never
   stalls on permissions. Tighten before this is anything but a PoC.
 

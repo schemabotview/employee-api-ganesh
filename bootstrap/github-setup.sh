@@ -13,9 +13,6 @@ echo "allowing ${MY_IP}/32 on port 8000"
 gh variable set AWS_ROLE_ARN \
   --repo "$REPO" --body "arn:aws:iam::${ACCOUNT}:role/${APP}-gha-role"
 
-gh variable set TF_STATE_BUCKET \
-  --repo "$REPO" --body "${APP}-tfstate-${ACCOUNT}"
-
 gh variable set TF_VAR_ALLOWED_CIDR \
   --repo "$REPO" --body "${MY_IP}/32"
 
