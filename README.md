@@ -22,10 +22,11 @@ main.py                        FastAPI app (/health, /employees)
 Dockerfile                     app image
 docker-compose.yml             local API + Postgres
 terraform/                     ECR, ECS Fargate + Postgres sidecar, SG
-bootstrap/bootstrap.sh         one-off: state bucket + GitHub OIDC role
+bootstrap/bootstrap.sh         one-off: GitHub OIDC provider + IAM role
+bootstrap/github-setup.sh      one-off: repo variables, secret, branch protection
 .github/workflows/terraform.yml  plan on PR, apply on main
 Jenkinsfile                    app pipeline
-jenkins/                       Jenkins image + compose
+jenkins/                       Jenkins image, compose, plugins, JCasC config
 ```
 
 ## Run it locally
@@ -72,6 +73,32 @@ so changes have to arrive via a PR — without that, the plan gate is decorative
 Because the database is a sidecar, step 4 restarts Postgres too and the
 employee rows reset to the three seeded ones.
 
+## Jenkins
+
+```bash
+cd jenkins
+JENKINS_ADMIN_PASSWORD='<pick one>' docker compose up -d --build
+open http://localhost:8080        # log in as admin
+```
+
+The job is created at boot by `jenkins/casc.yaml` (Configuration as Code) and
+the plugins are baked into the image, so there is no setup wizard and nothing
+to click together. It polls `main` every two minutes.
+
+AWS access comes from your host SSO profile, mounted read-only at
+`/root/.aws` — there is no long-lived access key anywhere. The trade is that
+builds fail once the SSO session expires; the `Preflight` stage detects that
+and tells you to run:
+
+```bash
+aws sso login --profile AdministratorAccess-743737183475
+```
+
+Stages: `Preflight` (credentials usable) → `Build` → `Test` → `Push to ECR`
+→ `Deploy to ECS`. The test stage runs the image against a throwaway Postgres
+on its own network and asserts `/employees` returns the seeded rows, so it
+covers schema setup rather than just checking the process is alive.
+
 ## Terraform state
 
 State lives in the shared team bucket, one prefix per person:
@@ -111,6 +138,10 @@ For local runs, copy `terraform/example.tfvars` to `terraform/terraform.tfvars`
   Fargate has nowhere to mount one, so doing it in the app keeps local and
   deployed behaviour identical.
 - Task size is 512 CPU / 1024 MB to fit both containers.
+- **Fargate runs ARM64.** An Apple Silicon host then builds natively and the
+  pipeline needs no cross-platform build step, which the Jenkins container
+  cannot do anyway (its Debian docker client has no buildx). Building on x86
+  means setting `cpu_architecture = "X86_64"`.
 - No ALB — the Fargate task gets a public IP, reachable on `:8000` from
   `allowed_cidr` only.
 - No DynamoDB state lock. Everyone shares the bucket but not the prefix, so
