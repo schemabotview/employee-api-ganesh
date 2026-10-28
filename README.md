@@ -10,7 +10,7 @@ Terraform gated on pull requests and applied on merge.
 | Infrastructure (ECR, ECS, SG, logs) | **Terraform**, run by **GitHub Actions** |
 | `terraform plan` on every PR | GitHub Actions, posted as a PR comment |
 | `terraform apply` on merge to `main` | GitHub Actions |
-| App build, smoke test, push to ECR, ECS rollout | **Jenkins** (in Docker) |
+| App build, unit + smoke tests, push to ECR, ECS rollout | **Jenkins** (in Docker) |
 
 Infrastructure and application are deliberately split so Actions and Jenkins
 never contend for the same Terraform state.
@@ -19,7 +19,9 @@ never contend for the same Terraform state.
 
 ```
 main.py                        FastAPI app (/health, /employees)
+tests/test_main.py             unit tests (TestClient over a fake connection)
 Dockerfile                     app image
+Dockerfile.test                unit-test image (app + pytest, no database)
 docker-compose.yml             local API + Postgres
 terraform/                     ECR, ECS Fargate + Postgres sidecar, SG
 bootstrap/bootstrap.sh         one-off: GitHub OIDC provider + IAM role
@@ -38,6 +40,22 @@ curl localhost:8000/employees
 curl -X POST localhost:8000/employees \
   -H 'content-type: application/json' \
   -d '{"name":"Katherine Johnson","dept":"Research","salary":99000}'
+```
+
+## Run the tests
+
+```bash
+docker build -f Dockerfile.test -t employee-api-test .
+docker run --rm employee-api-test
+```
+
+No database needed: the suite swaps `main.get_conn` for a fake connection, so
+it covers routing and request validation and leaves schema setup to the
+Jenkins smoke test. On the host instead of in Docker:
+
+```bash
+pip install -r requirements.txt -r requirements-dev.txt
+pytest -v
 ```
 
 ## One-off setup
@@ -67,8 +85,8 @@ so changes have to arrive via a PR — without that, the plan gate is decorative
 1. Branch, change something under `terraform/`, open a PR.
 2. Actions runs `fmt -check`, `validate`, `plan`, and comments the plan on the PR.
 3. Merge. Actions runs `apply -auto-approve` against the same state.
-4. Jenkins (polling every 2 min) builds the image, smoke-tests it, pushes to
-   ECR, and forces a new ECS deployment.
+4. Jenkins (polling every 2 min) runs the unit tests, builds the image,
+   smoke-tests it, pushes to ECR, and forces a new ECS deployment.
 
 Because the database is a sidecar, step 4 restarts Postgres too and the
 employee rows reset to the three seeded ones.
@@ -94,10 +112,16 @@ and tells you to run:
 aws sso login --profile AdministratorAccess-743737183475
 ```
 
-Stages: `Preflight` (credentials usable) → `Build` → `Test` → `Push to ECR`
-→ `Deploy to ECS`. The test stage runs the image against a throwaway Postgres
-on its own network and asserts `/employees` returns the seeded rows, so it
-covers schema setup rather than just checking the process is alive.
+Stages: `Preflight` (credentials usable) → `Unit tests` → `Build` → `Test`
+→ `Push to ECR` → `Deploy to ECS`.
+
+`Unit tests` builds `Dockerfile.test` and runs pytest inside it, publishing
+`report.xml` through the JUnit plugin so failures show up per test in the
+build page rather than as a wall of console output. It runs before `Build`
+so a broken suite fails in seconds. `Test` is the smoke test: it runs the
+real image against a throwaway Postgres on its own network and asserts
+`/employees` returns the seeded rows, so it covers schema setup rather than
+just checking the process is alive.
 
 ## Terraform state
 

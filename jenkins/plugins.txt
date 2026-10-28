@@ -4,3 +4,4 @@ git
 job-dsl
 timestamper
 ws-cleanup
+junit
