@@ -48,17 +48,14 @@ export AWS_PROFILE=AdministratorAccess-743737183475
 ```
 
 That creates the S3 state bucket, the GitHub Actions OIDC provider, and the
-role Actions assumes. It prints the `gh variable set` / `gh secret set`
-commands to run afterwards.
-
-Then protect `main` so changes have to arrive via PR, otherwise the plan gate
-is decorative:
+role Actions assumes. Then wire up the repo side:
 
 ```bash
-gh api -X PUT repos/schemabotview/employee-api-ganesh/branches/main/protection \
-  -f required_pull_request_reviews.required_approving_review_count=0 \
-  -F enforce_admins=false -F required_status_checks=null -F restrictions=null
+DB_PASSWORD='<password>' ./bootstrap/github-setup.sh
 ```
+
+That sets the repo variables and secret the workflow reads, and protects `main`
+so changes have to arrive via a PR — without that, the plan gate is decorative.
 
 ## The flow
 
