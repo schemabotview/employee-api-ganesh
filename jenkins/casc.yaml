@@ -1,0 +1,40 @@
+# Jenkins Configuration as Code. Everything here is applied at boot, so the
+# container comes up with the job already defined and no setup wizard.
+jenkins:
+  systemMessage: "employee-api-ganesh PoC - app pipeline. Terraform is owned by GitHub Actions."
+  numExecutors: 2
+
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "${JENKINS_ADMIN_ID:-admin}"
+          password: "${JENKINS_ADMIN_PASSWORD:-admin}"
+
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
+
+unclassified:
+  location:
+    url: "http://localhost:8080/"
+
+jobs:
+  - script: |
+      pipelineJob('employee-api-ganesh') {
+        description('Build, smoke test, push to ECR, roll out to ECS.')
+        definition {
+          cpsScm {
+            scm {
+              git {
+                remote {
+                  url('https://github.com/schemabotview/employee-api-ganesh.git')
+                }
+                branches('*/main')
+              }
+            }
+            scriptPath('Jenkinsfile')
+            lightweight(true)
+          }
+        }
+      }

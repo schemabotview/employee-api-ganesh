@@ -1,6 +1,10 @@
 // Jenkins owns the application: build, test, push, roll out.
 // Terraform (the infrastructure) is owned by GitHub Actions - see
 // .github/workflows/terraform.yml - so the two never fight over state.
+//
+// AWS access comes from the SSO profile in the mounted ~/.aws, set via
+// AWS_PROFILE in jenkins/docker-compose.yml. Refresh it on the host with
+//   aws sso login --profile AdministratorAccess-743737183475
 pipeline {
   agent any
 
@@ -22,6 +26,21 @@ pipeline {
   }
 
   stages {
+    stage('Preflight') {
+      steps {
+        sh '''
+          set -eu
+          if ! aws sts get-caller-identity --query Arn --output text; then
+            echo ""
+            echo "AWS credentials are not usable inside the container."
+            echo "The SSO session has most likely expired. On the host run:"
+            echo "  aws sso login --profile $AWS_PROFILE"
+            exit 1
+          fi
+        '''
+      }
+    }
+
     stage('Build') {
       steps {
         sh 'docker build --platform linux/amd64 -t $APP:$BUILD_NUMBER -t $APP:latest .'
@@ -64,44 +83,30 @@ except Exception:
 
     stage('Push to ECR') {
       steps {
-        withCredentials([usernamePassword(
-          credentialsId: 'aws-jenkins',
-          usernameVariable: 'AWS_ACCESS_KEY_ID',
-          passwordVariable: 'AWS_SECRET_ACCESS_KEY',
-        )]) {
-          sh '''
-            set -eu
-            ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
-            REGISTRY=$ACCOUNT.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+        sh '''
+          set -eu
+          ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+          REGISTRY=$ACCOUNT.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
 
-            aws ecr get-login-password | docker login --username AWS --password-stdin $REGISTRY
+          aws ecr get-login-password | docker login --username AWS --password-stdin $REGISTRY
 
-            docker tag $APP:$BUILD_NUMBER $REGISTRY/$APP:$BUILD_NUMBER
-            docker tag $APP:latest       $REGISTRY/$APP:latest
-            docker push $REGISTRY/$APP:$BUILD_NUMBER
-            docker push $REGISTRY/$APP:latest
-          '''
-        }
+          docker tag $APP:$BUILD_NUMBER $REGISTRY/$APP:$BUILD_NUMBER
+          docker tag $APP:latest       $REGISTRY/$APP:latest
+          docker push $REGISTRY/$APP:$BUILD_NUMBER
+          docker push $REGISTRY/$APP:latest
+        '''
       }
     }
 
     stage('Deploy to ECS') {
-      when {
-        branch 'main'
-      }
       steps {
-        withCredentials([usernamePassword(
-          credentialsId: 'aws-jenkins',
-          usernameVariable: 'AWS_ACCESS_KEY_ID',
-          passwordVariable: 'AWS_SECRET_ACCESS_KEY',
-        )]) {
-          sh '''
-            set -eu
-            aws ecs update-service --cluster $CLUSTER --service $SERVICE --force-new-deployment
-            aws ecs wait services-stable --cluster $CLUSTER --services $SERVICE
-            echo "deployed"
-          '''
-        }
+        sh '''
+          set -eu
+          aws ecs update-service --cluster $CLUSTER --service $SERVICE --force-new-deployment >/dev/null
+          echo "waiting for the service to stabilise"
+          aws ecs wait services-stable --cluster $CLUSTER --services $SERVICE
+          echo "deployed"
+        '''
       }
     }
   }

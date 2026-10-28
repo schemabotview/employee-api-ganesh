@@ -5,9 +5,16 @@ services:
     ports:
       - "8080:8080"
       - "50000:50000"
+    environment:
+      JENKINS_ADMIN_ID: "${JENKINS_ADMIN_ID:-admin}"
+      JENKINS_ADMIN_PASSWORD: "${JENKINS_ADMIN_PASSWORD:-admin}"
+      # The pipeline uses the SSO profile from the mounted ~/.aws rather than
+      # a long-lived access key. Refresh it on the host with
+      #   aws sso login --profile AdministratorAccess-743737183475
+      AWS_PROFILE: "${AWS_PROFILE:-AdministratorAccess-743737183475}"
+      AWS_DEFAULT_REGION: eu-west-2
     volumes:
       - ./jenkins_home:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock
-    environment:
-      JAVA_OPTS: -Djenkins.install.runSetupWizard=true
+      - ${HOME}/.aws:/root/.aws:ro
     restart: unless-stopped
