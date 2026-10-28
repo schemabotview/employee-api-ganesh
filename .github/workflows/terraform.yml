@@ -1,0 +1,123 @@
+name: terraform
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# OIDC token for AWS, plus write access to comment the plan on the PR.
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+concurrency:
+  group: terraform-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: eu-west-2
+  TF_VAR_allowed_cidr: ${{ vars.TF_VAR_ALLOWED_CIDR }}
+  TF_VAR_db_host: ${{ vars.TF_VAR_DB_HOST }}
+  TF_VAR_db_password: ${{ secrets.TF_VAR_DB_PASSWORD }}
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+          terraform_wrapper: false
+
+      - name: Init
+        run: terraform init -input=false -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+
+      - name: Format check
+        run: terraform fmt -check -recursive
+
+      - name: Validate
+        run: terraform validate
+
+      # ---- Pull request: plan only, then report it on the PR ----
+      - name: Plan
+        if: github.event_name == 'pull_request'
+        run: |
+          set -o pipefail
+          terraform plan -input=false -no-color -out=tfplan | tee tfplan.txt
+
+      - name: Comment plan on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let plan = fs.readFileSync('terraform/tfplan.txt', 'utf8');
+
+            // PR comments cap at 65536 chars; keep the tail, which holds the summary.
+            const limit = 60000;
+            if (plan.length > limit) {
+              plan = '...plan truncated, see the workflow log for the full output...\n\n'
+                   + plan.slice(-limit);
+            }
+
+            const body = [
+              '### Terraform plan',
+              '',
+              '<details><summary>Show plan</summary>',
+              '',
+              '```terraform',
+              plan,
+              '```',
+              '',
+              '</details>',
+              '',
+              `_commit ${context.sha.slice(0, 7)}_`,
+            ].join('\n');
+
+            const marker = '### Terraform plan';
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(
+              c => c.user.type === 'Bot' && c.body.startsWith(marker)
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+      # ---- Merge to main: apply ----
+      - name: Apply
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: terraform apply -input=false -auto-approve
+
+      - name: Outputs
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: terraform output

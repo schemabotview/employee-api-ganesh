@@ -1,31 +1,13 @@
-# Local Jenkins controller that builds and deploys employee-api.
-#
-# Start with:  docker compose -f jenkins/docker-compose.yml up -d --build
-# UI:          http://localhost:8080
-#
-# AWS auth: the host's ~/.aws is mounted read-only, so Jenkins reuses the SSO
-# token cache. That token is short-lived -- when builds start failing with
-# "Token has expired and refresh failed", run `aws sso login --sso-session
-# itc-ganesh` on the HOST and the container picks up the refreshed cache.
 services:
   jenkins:
     build: .
-    container_name: employee-jenkins
-    restart: unless-stopped
+    user: root # needed to reach the mounted docker socket
     ports:
-      - "8080:8080"   # web UI
-      - "50000:50000" # inbound agents
-    environment:
-      AWS_PROFILE: AdministratorAccess-743737183475
-      AWS_DEFAULT_REGION: eu-west-2
-      # Skip the setup wizard; we provision the admin user via JCasC-less init script.
-      JAVA_OPTS: -Djenkins.install.runSetupWizard=false
+      - "8080:8080"
+      - "50000:50000"
     volumes:
-      - jenkins_home:/var/jenkins_home
-      # Lets the pipeline's `docker build` reach the host daemon.
+      - ./jenkins_home:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock
-      # SSO token cache + profile config, read-only.
-      - ${HOME}/.aws:/root/.aws:ro
-
-volumes:
-  jenkins_home:
+    environment:
+      JAVA_OPTS: -Djenkins.install.runSetupWizard=true
+    restart: unless-stopped

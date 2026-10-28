@@ -6,8 +6,10 @@ resource "aws_cloudwatch_log_group" "app" {
   name              = "/ecs/${var.app_name}"
   retention_in_days = 7
 }
+
 resource "aws_iam_role" "execution" {
   name = "${var.app_name}-execution-role"
+
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -33,15 +35,17 @@ resource "aws_ecs_task_definition" "app" {
 
   container_definitions = jsonencode([{
     name         = var.app_name
-    image        = "${aws_ecr_repository.app.repository_url}:latest"
+    image        = "${aws_ecr_repository.app.repository_url}:${var.image_tag}"
     essential    = true
     portMappings = [{ containerPort = 8000 }]
+
     environment = [
       { name = "DB_HOST", value = var.db_host },
       { name = "DB_NAME", value = var.db_name },
       { name = "DB_USER", value = var.db_user },
-      { name = "DB_PASSWORD", value = var.db_password }
+      { name = "DB_PASSWORD", value = var.db_password },
     ]
+
     logConfiguration = {
       logDriver = "awslogs"
       options = {
@@ -62,7 +66,7 @@ resource "aws_ecs_service" "app" {
 
   network_configuration {
     subnets          = data.aws_subnets.default.ids
-    security_groups  = [aws_security_group.app.id, data.aws_security_group.default.id]
+    security_groups  = [aws_security_group.app.id]
     assign_public_ip = true
   }
 }

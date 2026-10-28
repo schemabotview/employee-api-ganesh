@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException
 from psycopg2.extras import RealDictCursor
 from pydantic import BaseModel
 
-app = FastAPI()
+app = FastAPI(title="Employee API")
 
 
 def get_conn():

@@ -1,8 +1,19 @@
+# python
 .venv/
 __pycache__/
 *.pyc
-.env   
-terraform/.terraform/
-terraform/*.tfstate
-terraform/*.tfstate.*
-terraform/terraform.tfvars
+
+# env / secrets
+.env
+*.tfvars
+!example.tfvars
+
+# terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+tfplan
+tfplan.txt
+
+# jenkins
+jenkins/jenkins_home/
