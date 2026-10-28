@@ -27,6 +27,9 @@ gh api -X PUT "repos/${REPO}/branches/main/protection" \
   -F required_status_checks=null \
   -F restrictions=null >/dev/null && echo "main is now protected"
 
+echo ""
+echo "Open a PR touching terraform/ and the plan should appear as a comment."
+
 echo
 echo "variables:"
 gh variable list --repo "$REPO"
