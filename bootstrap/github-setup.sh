@@ -17,8 +17,22 @@ gh variable set TF_VAR_ALLOWED_CIDR \
   --repo "$REPO" --body "${MY_IP}/32"
 
 # Initialises the Postgres sidecar and is what the API authenticates with.
-gh secret set TF_VAR_DB_PASSWORD \
-  --repo "$REPO" --body "${DB_PASSWORD:?set DB_PASSWORD before running}"
+# Only needed the first time, or to rotate it - the script is otherwise
+# re-runnable without re-supplying the password.
+if [ -n "${DB_PASSWORD:-}" ]; then
+  gh secret set TF_VAR_DB_PASSWORD --repo "$REPO" --body "$DB_PASSWORD"
+elif gh secret list --repo "$REPO" 2>/dev/null | grep -q '^TF_VAR_DB_PASSWORD'; then
+  echo "TF_VAR_DB_PASSWORD already set, leaving it alone"
+  echo "  (to rotate: DB_PASSWORD='<new>' ./bootstrap/github-setup.sh)"
+else
+  echo "ERROR: TF_VAR_DB_PASSWORD is not set yet. Re-run as:" >&2
+  echo "" >&2
+  echo "  DB_PASSWORD='<pick one>' ./bootstrap/github-setup.sh" >&2
+  echo "" >&2
+  echo "Avoid a value that appears in your resource names - GitHub masks the" >&2
+  echo "secret everywhere in logs, which would redact them from the plan." >&2
+  exit 1
+fi
 
 # Make the PR gate meaningful: no direct pushes to main.
 # This endpoint rejects dotted -f keys and requires all four top-level
