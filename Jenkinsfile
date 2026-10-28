@@ -43,7 +43,7 @@ pipeline {
 
     stage('Build') {
       steps {
-        sh 'docker build --platform linux/amd64 -t $APP:$BUILD_NUMBER -t $APP:latest .'
+        sh 'docker build -t $APP:$BUILD_NUMBER -t $APP:latest .'
       }
     }
 

@@ -36,6 +36,11 @@ resource "aws_ecs_task_definition" "app" {
   memory                   = 1024
   execution_role_arn       = aws_iam_role.execution.arn
 
+  runtime_platform {
+    cpu_architecture        = var.cpu_architecture
+    operating_system_family = "LINUX"
+  }
+
   container_definitions = jsonencode([
     {
       name      = "postgres"

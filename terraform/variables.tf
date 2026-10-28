@@ -38,6 +38,17 @@ variable "db_host" {
   }
 }
 
+variable "cpu_architecture" {
+  description = "Fargate CPU architecture. ARM64 so an Apple Silicon host builds natively, with no cross-platform build step in the pipeline. Flip to X86_64 if images are built on x86."
+  type        = string
+  default     = "ARM64"
+
+  validation {
+    condition     = contains(["ARM64", "X86_64"], var.cpu_architecture)
+    error_message = "cpu_architecture must be ARM64 or X86_64."
+  }
+}
+
 variable "postgres_image" {
   description = "Postgres image for the sidecar. ECR Public avoids Docker Hub pull limits."
   type        = string
