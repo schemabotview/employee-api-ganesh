@@ -21,8 +21,7 @@ never contend for the same Terraform state.
 main.py                        FastAPI app (/health, /employees)
 Dockerfile                     app image
 docker-compose.yml             local API + Postgres
-init.sql                       employees table + seed rows
-terraform/                     ECR, ECS Fargate, SG in the default VPC
+terraform/                     ECR, ECS Fargate + Postgres sidecar, SG
 bootstrap/bootstrap.sh         one-off: state bucket + GitHub OIDC role
 .github/workflows/terraform.yml  plan on PR, apply on main
 Jenkinsfile                    app pipeline
@@ -65,6 +64,9 @@ so changes have to arrive via a PR — without that, the plan gate is decorative
 4. Jenkins (polling every 2 min) builds the image, smoke-tests it, pushes to
    ECR, and forces a new ECS deployment.
 
+Because the database is a sidecar, step 4 restarts Postgres too and the
+employee rows reset to the three seeded ones.
+
 ## Terraform state
 
 State lives in the shared team bucket, one prefix per person:
@@ -79,13 +81,12 @@ fine while everyone stays inside their own prefix.
 
 ## Terraform variables
 
-`region`, `app_name`, `desired_count`, `image_tag`, `db_name`, `db_user` have
-defaults. These need values:
+`region`, `app_name`, `desired_count`, `image_tag`, `db_host`, `db_name`,
+`db_user` and `postgres_image` all have defaults. These need values:
 
 | Variable | Supplied by |
 |---|---|
 | `allowed_cidr` | repo variable `TF_VAR_ALLOWED_CIDR` |
-| `db_host` | repo variable `TF_VAR_DB_HOST` |
 | `db_password` | repo secret `TF_VAR_DB_PASSWORD` |
 
 For local runs, copy `terraform/example.tfvars` to `terraform/terraform.tfvars`
@@ -93,9 +94,18 @@ For local runs, copy `terraform/example.tfvars` to `terraform/terraform.tfvars`
 
 ## Notes and shortcuts
 
-- **Postgres is not in Terraform.** The deployed task reads `DB_HOST` from a
-  variable and points at a database you provide. `docker-compose.yml` runs one
-  locally for development. Add an `aws_db_instance` if you want RDS in the apply.
+- **Postgres runs as a sidecar, not RDS.** The ECS task has two containers:
+  `postgres` and the API. They share the task's network namespace, so
+  `DB_HOST=localhost` works and no RDS bill appears. The cost is that the data
+  sits on the task's ephemeral disk and is **wiped on every redeploy** — fine
+  for a demo, useless for anything that needs to persist. Swap in an
+  `aws_db_instance` and point `db_host` at its endpoint when that matters.
+- **The schema is created by the app, not by SQL on disk.** `ensure_schema()`
+  in `main.py` runs at startup, creates `employees` if missing and seeds three
+  rows, retrying while Postgres comes up. That is why there is no `init.sql`:
+  Fargate has nowhere to mount one, so doing it in the app keeps local and
+  deployed behaviour identical.
+- Task size is 512 CPU / 1024 MB to fit both containers.
 - No ALB — the Fargate task gets a public IP, reachable on `:8000` from
   `allowed_cidr` only.
 - No DynamoDB state lock. Everyone shares the bucket but not the prefix, so

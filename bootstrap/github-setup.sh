@@ -16,10 +16,7 @@ gh variable set AWS_ROLE_ARN \
 gh variable set TF_VAR_ALLOWED_CIDR \
   --repo "$REPO" --body "${MY_IP}/32"
 
-# No RDS in this PoC - the deployed task points at whatever you give it here.
-gh variable set TF_VAR_DB_HOST \
-  --repo "$REPO" --body "${DB_HOST:-localhost}"
-
+# Initialises the Postgres sidecar and is what the API authenticates with.
 gh secret set TF_VAR_DB_PASSWORD \
   --repo "$REPO" --body "${DB_PASSWORD:?set DB_PASSWORD before running}"
 

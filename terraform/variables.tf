@@ -28,8 +28,15 @@ variable "image_tag" {
 }
 
 variable "db_host" {
-  description = "Postgres host the deployed API connects to"
+  description = "Postgres host the API connects to. The sidecar shares the task's network namespace, so this stays localhost."
   type        = string
+  default     = "localhost"
+}
+
+variable "postgres_image" {
+  description = "Postgres image for the sidecar. ECR Public avoids Docker Hub pull limits."
+  type        = string
+  default     = "public.ecr.aws/docker/library/postgres:16-alpine"
 }
 
 variable "db_name" {
@@ -45,7 +52,7 @@ variable "db_user" {
 }
 
 variable "db_password" {
-  description = "Postgres password"
+  description = "Postgres password. Initialises the sidecar and is what the API authenticates with."
   type        = string
   sensitive   = true
 }

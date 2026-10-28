@@ -83,6 +83,5 @@ Done. Set these on the GitHub repo:
 
   gh variable set AWS_ROLE_ARN        --body "${ROLE_ARN}"      --repo ${REPO}
   gh variable set TF_VAR_allowed_cidr --body "<your.ip>/32"     --repo ${REPO}
-  gh variable set TF_VAR_db_host --body "<postgres host>"       --repo ${REPO}
   gh secret   set TF_VAR_db_password --body "<password>"        --repo ${REPO}
 SUMMARY
