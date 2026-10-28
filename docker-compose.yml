@@ -15,6 +15,10 @@ services:
 
   api:
     build: .
+    # Named explicitly so the local build is one obvious tag, not
+    # compose's default <dir>-<service>, and never collides with the
+    # employee-api-ganesh:<build> tags Jenkins produces on the same daemon.
+    image: employee-api-ganesh:local
     environment:
       DB_HOST: db
       DB_NAME: appdb

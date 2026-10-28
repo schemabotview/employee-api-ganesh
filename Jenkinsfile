@@ -130,6 +130,11 @@ print(body.decode()[:200])"
           docker tag $APP:latest       $REGISTRY/$APP:latest
           docker push $REGISTRY/$APP:$BUILD_NUMBER
           docker push $REGISTRY/$APP:latest
+
+          # Once the registry has them, the extra local tags are just clutter:
+          # every build otherwise leaves four of them on the host daemon.
+          # $APP:latest stays as the handle for the last build.
+          docker rmi $REGISTRY/$APP:$BUILD_NUMBER $REGISTRY/$APP:latest $APP:$BUILD_NUMBER
         '''
       }
     }
@@ -150,6 +155,7 @@ print(body.decode()[:200])"
   post {
     always {
       sh 'docker image prune -f || true'
+      sh 'docker builder prune -f --filter until=168h || true'
     }
   }
 }
