@@ -21,11 +21,17 @@ gh secret set TF_VAR_DB_PASSWORD \
   --repo "$REPO" --body "${DB_PASSWORD:?set DB_PASSWORD before running}"
 
 # Make the PR gate meaningful: no direct pushes to main.
-gh api -X PUT "repos/${REPO}/branches/main/protection" \
-  -f 'required_pull_request_reviews.required_approving_review_count=0' \
-  -F enforce_admins=false \
-  -F required_status_checks=null \
-  -F restrictions=null >/dev/null && echo "main is now protected"
+# This endpoint rejects dotted -f keys and requires all four top-level
+# fields to be present, so send a real JSON body.
+printf '%s' '{
+  "required_status_checks": null,
+  "enforce_admins": false,
+  "required_pull_request_reviews": { "required_approving_review_count": 0 },
+  "restrictions": null,
+  "allow_force_pushes": false,
+  "allow_deletions": false
+}' | gh api -X PUT "repos/${REPO}/branches/main/protection" --input - >/dev/null \
+  && echo "main is now protected: changes must arrive via a PR"
 
 echo ""
 echo "Open a PR touching terraform/ and the plan should appear as a comment."
