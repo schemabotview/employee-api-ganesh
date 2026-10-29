@@ -89,10 +89,12 @@ def get_employees():
 @app.post("/employees")
 def add_employee(emp: Employee):
     with get_conn() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
-        cur.execute(
-            "INSERT INTO employees (name, dept, salary) VALUES (%s, %s, %s) RETURNING *",
-            (emp.name, emp.dept, emp.salary),
-        )
+        # cur.execute(
+        #     "INSERT INTO employees (name, dept, salary) VALUES (%s, %s, %s) RETURNING *",
+        #     (emp.name, emp.dept, emp.salary),
+        # )
+        cur.execute("INSERT INTO employees (name, dept, salary) VALUES (%s, %s, %s) RETURNING *",
+                            (emp.name, emp.dept, emp.salary * 12))
         return cur.fetchone()
 
 

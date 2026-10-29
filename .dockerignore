@@ -5,3 +5,5 @@ __pycache__
 .env
 terraform
 jenkins
+report.xml
+.pytest_cache

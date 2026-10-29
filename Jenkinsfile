@@ -41,6 +41,38 @@ pipeline {
       }
     }
 
+    // Runs before Build so a broken suite fails in seconds, without
+    // waiting on the app image or AWS.
+    stage('Unit tests') {
+      steps {
+        sh '''
+          set -eu
+          # A report left by an earlier build would be published as this
+          # build's result if the copy below fails.
+          rm -f report.xml
+
+          docker build -f Dockerfile.test -t ${APP}-test:$BUILD_NUMBER .
+
+          # No --rm: the container has to survive for docker cp to lift the
+          # report out of it. The post block removes it either way.
+          docker run --name ${APP}-test-$BUILD_NUMBER ${APP}-test:$BUILD_NUMBER \
+            pytest -v --junitxml=report.xml
+        '''
+      }
+      post {
+        always {
+          sh '''
+            docker cp ${APP}-test-$BUILD_NUMBER:/app/report.xml . || true
+            docker rm -f ${APP}-test-$BUILD_NUMBER || true
+            # Tagged images survive `docker image prune`, so this has to be
+            # explicit or every build leaves another one on the daemon.
+            docker rmi ${APP}-test:$BUILD_NUMBER || true
+          '''
+          junit allowEmptyResults: true, testResults: 'report.xml'
+        }
+      }
+    }
+
     stage('Build') {
       steps {
         sh 'docker build -t $APP:$BUILD_NUMBER -t $APP:latest .'
@@ -130,6 +162,11 @@ print(body.decode()[:200])"
           docker tag $APP:latest       $REGISTRY/$APP:latest
           docker push $REGISTRY/$APP:$BUILD_NUMBER
           docker push $REGISTRY/$APP:latest
+
+          # Once the registry has them, the extra local tags are just clutter:
+          # every build otherwise leaves four of them on the host daemon.
+          # $APP:latest stays as the handle for the last build.
+          docker rmi $REGISTRY/$APP:$BUILD_NUMBER $REGISTRY/$APP:latest $APP:$BUILD_NUMBER
         '''
       }
     }
@@ -150,6 +187,7 @@ print(body.decode()[:200])"
   post {
     always {
       sh 'docker image prune -f || true'
+      sh 'docker builder prune -f --filter until=168h || true'
     }
   }
 }

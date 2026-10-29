@@ -1,0 +1,18 @@
+# Unit-test image: the app plus its dev dependencies and the suite.
+#
+# Separate from Dockerfile so the image that ships to ECR never carries
+# pytest, httpx or the tests themselves. Same python:3.12-slim base as the
+# app image, so the tests run on the interpreter production uses.
+FROM python:3.12-slim
+WORKDIR /app
+
+COPY requirements.txt requirements-dev.txt ./
+RUN pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt
+
+COPY main.py ./
+COPY tests ./tests
+
+# The suite drives the app through TestClient against a fake connection, so
+# no database is needed and nothing listens on a port. Jenkins overrides this
+# to add --junitxml; a bare `docker run` gives you the same run, unreported.
+CMD ["pytest", "-v"]
