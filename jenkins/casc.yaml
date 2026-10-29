@@ -23,6 +23,24 @@ jobs:
   - script: |
       pipelineJob('employee-api-ganesh') {
         description('Build, smoke test, push to ECR, roll out to ECS.')
+        // Declared here, not only in the Jenkinsfile: a declarative
+        // triggers block is installed on the job by a build parsing the
+        // Jenkinsfile, and this DSL is re-applied on every boot - so a
+        // restart would wipe it and nothing would poll until the next
+        // manual build.
+        //
+        // It has to be a property, not the DSL's top-level triggers block:
+        // a pipeline job keeps its triggers in PipelineTriggersJobProperty,
+        // so a <triggers> element is dropped when the job is loaded.
+        properties {
+          pipelineTriggers {
+            triggers {
+              pollSCM {
+                scmpoll_spec('H/2 * * * *')
+              }
+            }
+          }
+        }
         definition {
           cpsScm {
             scm {
